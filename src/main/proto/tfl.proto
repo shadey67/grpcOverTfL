@@ -2,13 +2,18 @@ syntax = "proto3";
 
 package tflOverGRPC;
 
+import "google/protobuf/timestamp.proto";
+
 option java_multiple_files = true;
 option java_package = "org.tfl.tflOverGRPC";
 option java_outer_classname = "tflProto";
 
 service tflService {
   rpc GetLineStatus(GetLineStatusRequest) returns (GetLineStatusResponse);
+  rpc WatchArrivals(WatchArrivalsRequest) returns (stream ArrivalsUpdate);
 }
+
+//Get Line Status
 
 message GetLineStatusRequest {
   string line_id = 1;
@@ -27,4 +32,25 @@ message Line {
 message LineStatus {
   int32 severity = 1;
   string description = 2;
+}
+
+//Watch Arrivals
+
+message WatchArrivalsRequest{
+  string stop_id = 1;
+}
+
+message ArrivalsUpdate {
+  string stop_id = 1;
+  string stop_name = 2;
+  repeated Arrival arrivals = 3;
+  google.protobuf.Timestamp fetched_at = 4;
+}
+
+message Arrival {
+  string line_id = 1;
+  string line_name = 2;
+  string platform = 3;
+  string destination = 4;
+  google.protobuf.Timestamp expected_arrival = 5;
 }

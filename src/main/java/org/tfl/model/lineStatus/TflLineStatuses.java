@@ -1,4 +1,4 @@
-package org.tfl.model.response;
+package org.tfl.model.lineStatus;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
