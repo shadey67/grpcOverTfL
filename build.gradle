@@ -1,18 +1,58 @@
 plugins {
     id 'java'
+    id 'com.google.protobuf' version '0.10.0'
 }
 
 group = 'org.example'
 version = '1.0-SNAPSHOT'
+
+ext {
+    grpcVersion = '1.84.0'
+    protobufVersion = '3.25.9'
+}
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    implementation "io.grpc:grpc-services:${grpcVersion}"
+
+    implementation platform('com.fasterxml.jackson:jackson-bom:2.22.3')
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.3.0'
+
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+
+    testImplementation "io.grpc:grpc-testing:${grpcVersion}"
+    testImplementation "io.grpc:grpc-inprocess:${grpcVersion}"
+    testImplementation 'org.wiremock:wiremock:3.13.2'
+
     testImplementation platform('org.junit:junit-bom:6.0.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${protobufVersion}"
+    }
+    plugins {
+        grpc {
+            artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
+        }
+    }
+    generateProtoTasks {
+        all().each { task ->
+            task.plugins {
+                grpc {}
+            }
+        }
+    }
 }
 
 test {

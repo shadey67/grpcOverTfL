@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package tflOverGRPC;
+
+option java_multiple_files = true;
+option java_package = "org.tfl.tflOverGRPC";
+option java_outer_classname = "tflOverGRPC";
+
+service tflService {
+  rpc GetLineStatus(GetLineStatusRequest) returns (GetLineStatusResponse);
+}
+
+message GetLineStatusRequest {
+  string line_id = 1;
+}
+
+message GetLineStatusResponse {
+  Line line = 1;
+}
+
+message Line {
+  string id = 1;
+  string name = 2;
+  repeated LineStatus statuses = 3;
+}
+
+message LineStatus {
+  int32 severity = 1;
+  string description = 2;
+}
