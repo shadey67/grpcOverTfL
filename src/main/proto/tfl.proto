@@ -52,5 +52,5 @@ message Arrival {
   string line_name = 2;
   string platform = 3;
   string destination = 4;
-  string time_to_arrival = 5;                 // whole minutes until arrival, rounded up
+  string time_to_arrival = 5;
 }
