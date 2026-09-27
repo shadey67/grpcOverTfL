@@ -5,30 +5,21 @@ import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import org.tfl.client.TflClient;
 import org.tfl.model.lineStatus.TflLine;
-import org.tfl.scheduled.ArrivalsPoller;
+import org.tfl.arrivals.ArrivalsHub;
+import org.tfl.arrivals.ArrivalsSubscriber;
 import org.tfl.tflOverGRPC.*;
 
-import java.time.Duration;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-
 import static org.tfl.mapper.TflMappers.toProto;
+import static org.tfl.utils.CommonUtils.timeoutFromDeadline;
 
 public class TfLServiceImpl extends tflServiceGrpc.tflServiceImplBase {
 
-    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
-    private static final Duration POLL_INTERVAL = Duration.ofSeconds(30);
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
     private final TflClient tflClient;
+    private final ArrivalsHub arrivalsHub;
 
-    public TfLServiceImpl(TflClient tflClient){
+    public TfLServiceImpl(TflClient tflClient, ArrivalsHub arrivalsHub){
         this.tflClient = tflClient;
-    }
-
-    public void shutdown(){
-        scheduler.shutdownNow();
+        this.arrivalsHub = arrivalsHub;
     }
 
     @Override
@@ -66,30 +57,8 @@ public class TfLServiceImpl extends tflServiceGrpc.tflServiceImplBase {
         var call = (ServerCallStreamObserver<ArrivalsUpdate>) responseStreamObserver;
         String stopId = request.getStopId();
 
-        ArrivalsPoller poller = new ArrivalsPoller(stopId, call, tflClient);
-        ScheduledFuture<?> task = scheduler.scheduleWithFixedDelay(
-                poller, 0, POLL_INTERVAL.toSeconds(), TimeUnit.SECONDS
-        );
-        poller.setTask(task);
-
-        call.setOnCancelHandler(() -> {
-            task.cancel(false);
-            System.out.println("Client cancelled, stopped polling " + stopId);
-        });
-
-    }
-
-    private Duration timeoutFromDeadline(){
-        Deadline deadline = Context.current().getDeadline();
-        if(deadline == null){
-            return DEFAULT_TIMEOUT;
-        }
-        long remainingMs = deadline.timeRemaining(TimeUnit.MILLISECONDS);
-        if(remainingMs<=0){
-            throw Status.DEADLINE_EXCEEDED
-                    .withDescription("Deadline already passed")
-                    .asRuntimeException();
-        }
-        return Duration.ofMillis(remainingMs);
+        var subscriber = new ArrivalsSubscriber(call) ;
+        call.setOnCancelHandler(() -> arrivalsHub.unsubscribe(stopId, subscriber));
+        arrivalsHub.subscribe(stopId, subscriber);
     }
 }

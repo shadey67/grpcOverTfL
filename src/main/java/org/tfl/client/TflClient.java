@@ -15,9 +15,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
-public class TflClient {
+import static org.tfl.constants.Constants.BASE_URL;
 
-    private static final String BASE_URL = "https://api.tfl.gov.uk";
+public class TflClient {
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))

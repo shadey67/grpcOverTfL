@@ -6,12 +6,15 @@ import org.tfl.model.lineStatus.TflLineStatuses;
 import org.tfl.tflOverGRPC.Arrival;
 import org.tfl.tflOverGRPC.Line;
 import org.tfl.tflOverGRPC.LineStatus;
-
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
+
+import static org.tfl.utils.CommonUtils.orEmpty;
+import static org.tfl.utils.CommonUtils.toMinutes;
 
 public class TflMappers {
+
+    private TflMappers(){};
 
     public static Line toProto(TflLine tflLine){
         Line.Builder line = Line.newBuilder()
@@ -30,28 +33,19 @@ public class TflMappers {
     }
 
     public static List<Arrival> toProto(List<TflArrival> tflArrivals){
-        List<Arrival> arrivals = new ArrayList<>();
-        for(TflArrival arrival : tflArrivals){
-            arrivals.add(Arrival.newBuilder()
-                    .setDestination(orEmpty(arrival.getDestination()))
-                    .setLineName(orEmpty(arrival.getLine_name()))
-                    .setLineId(orEmpty(arrival.getLine_id()))
-                    .setPlatform(orEmpty(arrival.getPlatform()))
-                    .setTimeToArrival(toMinutes(arrival.getTime_to_station()) + " Minutes")
-                    .build());
+        return tflArrivals.stream()
+                .sorted(Comparator.comparing(TflArrival::getExpected_arrival))
+                .map(TflMappers::toProto)
+                .toList();
         }
-        return arrivals;
-    }
 
-    private static String orEmpty(String value){
-        return Objects.requireNonNullElse(value, "");
-    }
-
-    private static String toMinutes(Integer secondsToStation){
-        if(secondsToStation == null){
-            return "";
-        }
-        long minutes = Math.ceilDiv(Math.max(secondsToStation, 0), 60);
-        return Long.toString(minutes);
+    private static Arrival toProto(TflArrival arrival){
+        return Arrival.newBuilder()
+                .setDestination(orEmpty(arrival.getDestination()))
+                .setLineName(orEmpty(arrival.getLine_name()))
+                .setLineId(orEmpty(arrival.getLine_id()))
+                .setPlatform(orEmpty(arrival.getPlatform()))
+                .setTimeToArrival(toMinutes(arrival.getTime_to_station()) + " Minutes")
+                .build();
     }
 }
