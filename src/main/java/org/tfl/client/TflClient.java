@@ -2,6 +2,7 @@ package org.tfl.client;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.tfl.exception.TflHttpException;
 import org.tfl.model.arrivalsUpdate.TflArrival;
 import org.tfl.model.lineStatus.TflLine;
 
@@ -48,7 +49,8 @@ public class TflClient {
             return Optional.empty();
         }
         if(response.statusCode() != 200){
-            throw new Exception("TfL returned HTTP " + response.statusCode());
+            throw new TflHttpException(response.statusCode(),
+                    "TfL returned HTTP " + response.statusCode());
         }
 
         try{
@@ -59,8 +61,8 @@ public class TflClient {
         }
     }
 
-    public List<TflArrival> getArrivals(String lineId, Duration timeout) throws Exception {
-        URI uri = URI.create(BASE_URL + "/StopPoint/" + lineId + "/arrivals?app_key="+apiKey);
+    public List<TflArrival> getArrivals(String stopId, Duration timeout) throws Exception {
+        URI uri = URI.create(BASE_URL + "/StopPoint/" + stopId + "/arrivals?app_key="+apiKey);
         HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(timeout)
                 .header("Accept", "application/json")
@@ -75,7 +77,8 @@ public class TflClient {
         }
 
         if(response.statusCode() != 200){
-            throw new Exception("TfL returned HTTP " + response.statusCode());
+            throw new TflHttpException(response.statusCode(),
+                    "TfL returned HTTP " + response.statusCode());
         }
 
         try{

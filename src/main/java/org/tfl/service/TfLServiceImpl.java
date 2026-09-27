@@ -1,35 +1,34 @@
 package org.tfl.service;
 
-import io.grpc.Context;
-import io.grpc.Deadline;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
+import io.grpc.*;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import org.tfl.client.TflClient;
-import org.tfl.model.arrivalsUpdate.TflArrival;
 import org.tfl.model.lineStatus.TflLine;
-import org.tfl.model.lineStatus.TflLineStatuses;
+import org.tfl.scheduled.ArrivalsPoller;
 import org.tfl.tflOverGRPC.*;
 
-import com.google.protobuf.Timestamp;
-
 import java.time.Duration;
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
+import static org.tfl.mapper.TflMappers.toProto;
 
 public class TfLServiceImpl extends tflServiceGrpc.tflServiceImplBase {
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
-
+    private static final Duration POLL_INTERVAL = Duration.ofSeconds(30);
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
     private final TflClient tflClient;
 
     public TfLServiceImpl(TflClient tflClient){
         this.tflClient = tflClient;
+    }
+
+    public void shutdown(){
+        scheduler.shutdownNow();
     }
 
     @Override
@@ -64,24 +63,19 @@ public class TfLServiceImpl extends tflServiceGrpc.tflServiceImplBase {
             WatchArrivalsRequest request,
             StreamObserver<ArrivalsUpdate> responseStreamObserver)
     {
-        try{
-            String stopId = request.getStopId();
+        var call = (ServerCallStreamObserver<ArrivalsUpdate>) responseStreamObserver;
+        String stopId = request.getStopId();
 
-            List<TflArrival> arrivalList = tflClient.getArrivals(stopId, timeoutFromDeadline());
+        ArrivalsPoller poller = new ArrivalsPoller(stopId, call, tflClient);
+        ScheduledFuture<?> task = scheduler.scheduleWithFixedDelay(
+                poller, 0, POLL_INTERVAL.toSeconds(), TimeUnit.SECONDS
+        );
+        poller.setTask(task);
 
-            responseStreamObserver.onNext(ArrivalsUpdate.newBuilder()
-                            .addAllArrivals(toProto(arrivalList))
-                    .build());
-            responseStreamObserver.onCompleted();
-
-        } catch (StatusRuntimeException e) {
-            responseStreamObserver.onError(e);
-        } catch (Exception e) {
-            responseStreamObserver.onError(Status.INTERNAL
-                    .withDescription("Unexpected error")
-                    .withCause(e)
-                    .asRuntimeException());
-        }
+        call.setOnCancelHandler(() -> {
+            task.cancel(false);
+            System.out.println("Client cancelled, stopped polling " + stopId);
+        });
 
     }
 
@@ -97,50 +91,5 @@ public class TfLServiceImpl extends tflServiceGrpc.tflServiceImplBase {
                     .asRuntimeException();
         }
         return Duration.ofMillis(remainingMs);
-    }
-
-    private static Line toProto(TflLine tflLine){
-        Line.Builder line = Line.newBuilder()
-                .setId(tflLine.getId())
-                .setName(tflLine.getName());
-
-        if(tflLine.getLineStatuses() != null){
-            for(TflLineStatuses s : tflLine.getLineStatuses()){
-                line.addStatuses(LineStatus.newBuilder()
-                        .setDescription(s.getDescription())
-                        .setSeverity(s.getSeverity())
-                        .build());
-            }
-        }
-        return line.build();
-    }
-
-    private static List<Arrival> toProto(List<TflArrival> tflArrivals){
-        List<Arrival> arrivals = new ArrayList<>();
-        for(TflArrival arrival : tflArrivals){
-            Arrival.Builder builder = Arrival.newBuilder()
-                    .setDestination(orEmpty(arrival.getDestination()))
-                    .setLineName(orEmpty(arrival.getLine_name()))
-                    .setLineId(orEmpty(arrival.getLine_id()))
-                    .setPlatform(orEmpty(arrival.getPlatform()));
-
-            if(arrival.getExpected_arrival() != null){
-                builder.setExpectedArrival(toTimestamp(arrival.getExpected_arrival()));
-            }
-            arrivals.add(builder.build());
-        }
-        return arrivals;
-    }
-
-    private static String orEmpty(String value){
-        return Objects.requireNonNullElse(value, "");
-    }
-
-    private static Timestamp toTimestamp(OffsetDateTime dateTime){
-        Instant instant = dateTime.toInstant();
-        return Timestamp.newBuilder()
-                .setSeconds(instant.getEpochSecond())
-                .setNanos(instant.getNano())
-                .build();
     }
 }

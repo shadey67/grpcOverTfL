@@ -15,6 +15,9 @@ public class TflArrival {
     @JsonProperty("lineName")
     private String line_name;
 
+    @JsonProperty("stationName")
+    private String stop_name;
+
     @JsonProperty("platformName")
     private String platform;
 
@@ -23,4 +26,7 @@ public class TflArrival {
 
     @JsonProperty("expectedArrival")
     private OffsetDateTime expected_arrival;
+
+    @JsonProperty("timeToStation")
+    private Integer time_to_station;
 }
